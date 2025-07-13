@@ -7,8 +7,8 @@ webcamera.set(cv2.CAP_PROP_FRAME_WIDTH, 1280)
 webcamera.set(cv2.CAP_PROP_FRAME_HEIGHT, 720)
 
 net = cv2.dnn.readNetFromCaffe(
-    'Modelos/deploy.prototxt',
-    'Modelos/res10_300x300_ssd_iter_140000.caffemodel'
+    '../Modelos/deploy.prototxt',
+    '../Modelos/res10_300x300_ssd_iter_140000.caffemodel'
 )
 
 while True:

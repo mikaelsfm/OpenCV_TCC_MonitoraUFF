@@ -1,134 +1,126 @@
-# Detectando Objetos em tem real com OpenCV deep learning library
-
-# Importação das Bibliotecas
 import numpy as np
 import cv2
 import time
+import os
 
-# Necessário para criar o arquivo contendo os objectos detectados
-from csv import DictWriter
+# Caminho para a pasta com os ficheiros do YOLO.
+# Garanta que esta pasta 'yoloDados' está no mesmo diretório que o seu script.
+YOLO_PATH = 'yoloDados'
+MODEL_NAMES_PATH = os.path.join(YOLO_PATH, 'YoloNames.names')
+CONFIG_PATH = os.path.join(YOLO_PATH, 'yolov3.cfg')
+WEIGHTS_PATH = os.path.join(YOLO_PATH, 'yolov3.weights')
 
-# Defini qual camera será utilizada na captura
-camera = cv2.VideoCapture(1)
+# Definições de confiança e limiar para a deteção
+PROBABILITY_MINIMUM = 0.5
+THRESHOLD = 0.3
 
-# Cria variáveis para captura de altura e largura
-h, w = None, None
-
-# Carrega o arquivos com o nome dos objetos que o arquivo foi treinado para detectar
-with open('yoloDados/YoloNames.names') as f:
-    # cria uma lista com todos os nomes
+with open(MODEL_NAMES_PATH) as f:
     labels = [line.strip() for line in f]
 
-# carrega os arquivos treinados pelo framework
-network = cv2.dnn.readNetFromDarknet('yoloDados/yolov3.cfg',
-                                     'yoloDados/yolov3.weights')
 
-# captura um lista com todos os nomes de objetos treinados pelo framework
-layers_names_all = network.getLayerNames()
-
-# Obtendo apenas nomes de camadas de saída que precisamos do algoritmo YOLOv3
-# com função que retorna índices de camadas com saídas desconectadas
-layers_names_output = \
-    [layers_names_all[i[0] - 1] for i in network.getUnconnectedOutLayers()]
-
-# Definir probabilidade mínima para eliminar previsões fracas
-probability_minimum = 0.5
-
-# Definir limite para filtrar caixas delimitadoras fracas
-# com supressão não máxima
-threshold = 0.3
-
-# Gera cores aleatórias nas caixas de cada objeto detectados
 colours = np.random.randint(0, 255, size=(len(labels), 3), dtype='uint8')
+network = cv2.dnn.readNetFromDarknet(CONFIG_PATH, WEIGHTS_PATH)
 
-# Loop de captura e detecção dos objetos
+# try:
+#     print("A verificar a disponibilidade da GPU...")
+#     network.setPreferableBackend(cv2.dnn.DNN_BACKEND_CUDA)
+#     network.setPreferableTarget(cv2.dnn.DNN_TARGET_CUDA)
+#     print("Backend configurado para usar a GPU (CUDA).")
+# except cv2.error as e:
+#     print(f"Não foi possível configurar o backend para CUDA: {e}")
+#     print("A usar a CPU.")
 
-with open('teste.csv', 'w') as arquivo:
-    cabecalho = ['Detectado', 'Acuracia']
-    escritor_csv = DictWriter(arquivo, fieldnames=cabecalho)
-    escritor_csv.writeheader()
-    while True:
-        # Captura da camera frame por frame
-        _, frame = camera.read()
 
-        if w is None or h is None:
-            # Fatiar apenas dois primeiros elementos da tupla
-            h, w = frame.shape[:2]
+layers_names_all = network.getLayerNames()
+try:
+    layers_names_output = [layers_names_all[i[0] - 1] for i in network.getUnconnectedOutLayers()]
+except IndexError:
+    layers_names_output = [layers_names_all[i - 1] for i in network.getUnconnectedOutLayers()]
 
-        # A forma resultante possui número de quadros, número de canais, largura e altura
-        # E.G.:
-        blob = cv2.dnn.blobFromImage(frame, 1 / 255.0, (416, 416),
-                                     swapRB=True, crop=False)
 
-        # Implementando o passe direto com nosso blob e somente através das camadas de saída
-        # Cálculo ao mesmo tempo, tempo necessário para o encaminhamento
-        network.setInput(blob)  # definindo blob como entrada para a rede
-        start = time.time()
-        output_from_network = network.forward(layers_names_output)
-        end = time.time()
+camera = cv2.VideoCapture(2, cv2.CAP_DSHOW)
+if not camera.isOpened():
+    print("Câmara 2 não encontrada. A tentar a câmara padrão (0)...")
+    camera = cv2.VideoCapture(0)
+    if not camera.isOpened():
+        print("Erro: Nenhuma câmara foi encontrada.")
+        exit()
 
-        # Mostrando tempo gasto para um único quadro atual
-        print('Tempo gasto atual {:.5f} segundos'.format(end - start))
+camera.set(cv2.CAP_PROP_FRAME_WIDTH, 1280)
+camera.set(cv2.CAP_PROP_FRAME_HEIGHT, 720)
+h, w = None, None
 
-        # Preparando listas para caixas delimitadoras detectadas,
+cv2.namedWindow('YOLO v3 WebCamera', cv2.WINDOW_NORMAL)
 
-        bounding_boxes = []
-        confidences = []
-        class_numbers = []
+while True:
+    ret, frame = camera.read()
+    if not ret:
+        break
 
-        # Passando por todas as camadas de saída após o avanço da alimentação
-        # Fase de detecção dos objetos
-        for result in output_from_network:
-            for detected_objects in result:
-                scores = detected_objects[5:]
-                class_current = np.argmax(scores)
-                confidence_current = scores[class_current]
+    frame = cv2.flip(frame, 1)
 
-                # Eliminando previsões fracas com probabilidade mínima
-                if confidence_current > probability_minimum:
-                    box_current = detected_objects[0:4] * np.array([w, h, w, h])
-                    x_center, y_center, box_width, box_height = box_current
-                    x_min = int(x_center - (box_width / 2))
-                    y_min = int(y_center - (box_height / 2))
+    # Obtém as dimensões do frame apenas uma vez
+    if w is None or h is None:
+        h, w = frame.shape[:2]
 
-                    # Adicionando resultados em listas preparadas
-                    bounding_boxes.append([x_min, y_min,
-                                           int(box_width), int(box_height)])
-                    confidences.append(float(confidence_current))
-                    class_numbers.append(class_current)
+    # Cria um blob a partir do frame para alimentar a rede
+    blob = cv2.dnn.blobFromImage(frame, 1 / 255.0, (416, 416), swapRB=True, crop=False)
 
-        results = cv2.dnn.NMSBoxes(bounding_boxes, confidences,
-                                   probability_minimum, threshold)
+    # Define o blob como entrada para a rede e faz a previsão
+    network.setInput(blob)
+    start = time.time()
+    output_from_network = network.forward(layers_names_output)
+    end = time.time()
 
-        # Verificando se existe pelo menos um objeto detectado
+    # Listas para guardar as informações das deteções
+    bounding_boxes = []
+    confidences = []
+    class_numbers = []
 
-        if len(results) > 0:
-            for i in results.flatten():
-                x_min, y_min = bounding_boxes[i][0], bounding_boxes[i][1]
-                box_width, box_height = bounding_boxes[i][2], bounding_boxes[i][3]
-                colour_box_current = colours[class_numbers[i]].tolist()
-                cv2.rectangle(frame, (x_min, y_min),
-                              (x_min + box_width, y_min + box_height),
-                              colour_box_current, 2)
+    # Itera sobre os resultados da rede
+    for result in output_from_network:
+        for detected_objects in result:
+            scores = detected_objects[5:]
+            class_current = np.argmax(scores)
+            confidence_current = scores[class_current]
 
-                # Preparando texto com rótulo e acuracia para o objeto detectado
-                text_box_current = '{}: {:.4f}'.format(labels[int(class_numbers[i])],
-                                                       confidences[i])
+            if confidence_current > PROBABILITY_MINIMUM:
+                box_current = detected_objects[0:4] * np.array([w, h, w, h])
+                x_center, y_center, box_width, box_height = box_current.astype('int')
+                x_min = int(x_center - (box_width / 2))
+                y_min = int(y_center - (box_height / 2))
 
-                # Coloca o texto nos objetos detectados
-                cv2.putText(frame, text_box_current, (x_min, y_min - 5),
-                            cv2.FONT_HERSHEY_SIMPLEX, 0.5, colour_box_current, 2)
+                bounding_boxes.append([x_min, y_min, int(box_width), int(box_height)])
+                confidences.append(float(confidence_current))
+                class_numbers.append(class_current)
 
-                escritor_csv.writerow(
-                    {"Detectado": text_box_current.split(':')[0], "Acuracia": text_box_current.split(':')[1]})
+    # Aplica a Supressão Não-Máxima para eliminar caixas sobrepostas e redundantes
+    results = cv2.dnn.NMSBoxes(bounding_boxes, confidences, PROBABILITY_MINIMUM, THRESHOLD)
 
-                print(text_box_current.split(':')[0] + " - " + text_box_current.split(':')[1])
+    # Desenha os resultados finais na imagem
+    if len(results) > 0:
+        for i in results.flatten():
+            x_min, y_min = bounding_boxes[i][0], bounding_boxes[i][1]
+            box_width, box_height = bounding_boxes[i][2], bounding_boxes[i][3]
 
-        cv2.namedWindow('YOLO v3 WebCamera', cv2.WINDOW_NORMAL)
-        cv2.imshow('YOLO v3 WebCamera', frame)
+            # Obtém a cor para a classe atual
+            colour_box_current = [int(c) for c in colours[class_numbers[i]]]
 
-        if cv2.waitKey(1) & 0xFF == ord('q'):
-            break
+            # Desenha o retângulo
+            cv2.rectangle(frame, (x_min, y_min), (x_min + box_width, y_min + box_height), colour_box_current, 2)
 
+            # Prepara o texto com o nome do objeto e a confiança
+            text_box_current = f'{labels[class_numbers[i]]}: {confidences[i]:.2f}'
+
+            # Coloca o texto na imagem
+            cv2.putText(frame, text_box_current, (x_min, y_min - 7), cv2.FONT_HERSHEY_SIMPLEX, 0.7, colour_box_current,
+                        2)
+
+    cv2.imshow('YOLO v3 WebCamera', frame)
+
+    if cv2.waitKey(1) & 0xFF == ord('q'):
+        break
+
+print("A encerrar o programa.")
 camera.release()
 cv2.destroyAllWindows()

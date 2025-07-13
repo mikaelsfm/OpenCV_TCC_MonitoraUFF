@@ -2,7 +2,7 @@ import cv2
 import numpy as np
 
 # Carregando a imagem
-imagem = cv2.imread('Fotos/imagem3.jpg', cv2.IMREAD_COLOR)
+imagem = cv2.imread('../Fotos/imagem3.jpg', cv2.IMREAD_COLOR)
 
 if imagem is not None:
     # Pré-processamento
@@ -16,8 +16,8 @@ if imagem is not None:
 
     # Carrega a rede treinada
     net = cv2.dnn.readNetFromCaffe(
-        'Modelos/deploy.prototxt',
-        'Modelos/res10_300x300_ssd_iter_140000.caffemodel'
+        '../Modelos/deploy.prototxt',
+        '../Modelos/res10_300x300_ssd_iter_140000.caffemodel'
     )
 
     net.setInput(blob)

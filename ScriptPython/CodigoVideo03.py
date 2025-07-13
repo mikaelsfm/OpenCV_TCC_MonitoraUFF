@@ -1,57 +1,89 @@
 import cv2
 import numpy as np
+import mediapipe as mp
+from mediapipe.tasks import python
+from mediapipe.tasks.python import vision
+from mediapipe.tasks.python.vision import object_detector
+from mediapipe.tasks.python.vision.object_detector import ObjectDetector
 
-webcamera = cv2.VideoCapture(2, cv2.CAP_DSHOW)
+def visualize(image, detection_result) -> np.ndarray:
 
-webcamera.set(cv2.CAP_PROP_FRAME_WIDTH, 1280)
-webcamera.set(cv2.CAP_PROP_FRAME_HEIGHT, 720)
+    COLORS = {
+        'person': (0, 255, 0),
+        'dog': (0, 0, 255),
+        'cat': (255, 0, 255),
+        'cell phone': (0, 255, 255),
+        'book': (255, 255, 0),
+    }
 
-if not webcamera.isOpened():
-    print("Erro ao abrir a câmera")
-    exit()
+    for detection in detection_result.detections:
+        category = detection.categories[0]
+        category_name = category.category_name
+        probability = round(category.score, 2)
 
-net = cv2.dnn.readNetFromCaffe(
-    'Modelos/deploy.prototxt',
-    'Modelos/res10_300x300_ssd_iter_140000.caffemodel'
+        if probability < 0.7:
+            continue
+
+        bbox = detection.bounding_box
+        start_point = bbox.origin_x, bbox.origin_y
+        end_point = bbox.origin_x + bbox.width, bbox.origin_y + bbox.height
+
+        color = COLORS.get(category_name, (255, 0, 0))  # azul padrão
+
+        cv2.rectangle(image, start_point, end_point, color, 3)
+
+        result_text = f'{category_name} ({probability})'
+        text_location = (bbox.origin_x + 10, bbox.origin_y + 30)
+        cv2.putText(image, result_text, text_location, cv2.FONT_HERSHEY_PLAIN,
+                    2, color, 2)
+    return image
+
+base_options = python.BaseOptions(model_asset_path='../Modelos/ssd_mobilenet_v2.tflite')
+options = vision.ObjectDetectorOptions(
+    base_options=base_options,
+    score_threshold=0.75
 )
 
-classificadorOlho = cv2.CascadeClassifier("Haarcascade/haarcascade_eye.xml")
+detector = vision.ObjectDetector.create_from_options(options)
 
-while True:
-    ret, frame = webcamera.read()
+cap = cv2.VideoCapture(2, cv2.CAP_DSHOW)
+if not cap.isOpened():
+    print("Câmera 2 não encontrada. Tentando a câmera padrão (0)...")
+    cap = cv2.VideoCapture(0)
+    if not cap.isOpened():
+        print("Erro: Nenhuma câmera foi encontrada.")
+        exit()
 
-    if not ret or frame is None:
-        print("Erro ao capturar frame")
-        continue
+cap.set(cv2.CAP_PROP_FRAME_WIDTH, 1280)
+cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 720)
 
-    altura, largura = frame.shape[:2]
-    blob = cv2.dnn.blobFromImage(cv2.resize(frame, (300, 300)), 1.0, (300, 300), (104, 177, 123))
-
-    net.setInput(blob)
-    detections = net.forward()
-
-    # Percorre as detecções de faces
-    for i in range(detections.shape[2]):
-        confidence = detections[0, 0, i, 2]
-
-        if confidence > 0.5:
-            box = detections[0, 0, i, 3:7] * np.array([largura, altura, largura, altura])
-            (x1, y1, x2, y2) = box.astype("int")
-
-            cv2.rectangle(frame, (x1, y1), (x2, y2), (255, 0, 0), 2)
-            
-            # Região da face para detectar olhos
-            pegaOlho = frame[y1:y2, x1:x2]
-            if pegaOlho.size > 0:
-                OlhoCinza = cv2.cvtColor(pegaOlho, cv2.COLOR_BGR2GRAY)
-                localizaOlho = classificadorOlho.detectMultiScale(OlhoCinza)
-                for (ox, oy, ol, oa) in localizaOlho:
-                    cv2.rectangle(pegaOlho, (ox, oy), (ox + ol, oy + oa), (0, 255, 0), 2)
-
-    cv2.imshow("Video WebCamera (DNN)", frame)
-
-    if cv2.waitKey(1) == ord('q'):
+while cap.isOpened():
+    ret, frame = cap.read()
+    if not ret:
+        print("Erro ao ler o quadro da câmera.")
         break
 
-webcamera.release()
+    frame = cv2.flip(frame, 1)
+
+    frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+
+    # Cria um objeto mp.Image a partir do array numpy do quadro
+    mp_image = mp.Image(image_format=mp.ImageFormat.SRGB, data=frame_rgb)
+
+    # Detecta os objetos na imagem
+    detection_result = detector.detect(mp_image)
+
+    # Desenha os resultados na imagem original (BGR)
+    annotated_image = visualize(frame, detection_result)
+
+    # Mostra o resultado
+    cv2.imshow("MediaPipe - Detecção de Objetos (Webcam)", annotated_image)
+
+    # Encerra o loop se 'q' for pressionado
+    if cv2.waitKey(5) & 0xFF == ord('q'):
+        break
+
+detector.close()
+
+cap.release()
 cv2.destroyAllWindows()

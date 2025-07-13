@@ -1,11 +1,11 @@
 import cv2
 import numpy as np
+import os
 
-# Carregando a imagem
-imagem = cv2.imread('Fotos/imagem8.jpg', cv2.IMREAD_COLOR)
+print("Diretório atual:", os.getcwd())
+imagem = cv2.imread('../Fotos/imagem8.jpg', cv2.IMREAD_COLOR)
 
 if imagem is not None:
-    # Pré-processamento
     altura, largura = imagem.shape[:2]
     blob = cv2.dnn.blobFromImage(
         cv2.resize(imagem, (300, 300)),
@@ -14,16 +14,14 @@ if imagem is not None:
         (104.0, 177.0, 123.0)
     )
 
-    # Carrega a rede treinada
     net = cv2.dnn.readNetFromCaffe(
-        'Modelos/deploy.prototxt',
-        'Modelos/res10_300x300_ssd_iter_140000.caffemodel'
+        '../Modelos/deploy.prototxt',
+        '../Modelos/res10_300x300_ssd_iter_140000.caffemodel'
     )
 
     net.setInput(blob)
     detections = net.forward()
 
-    # Percorre as detecções
     for i in range(detections.shape[2]):
         confidence = detections[0, 0, i, 2]
 
