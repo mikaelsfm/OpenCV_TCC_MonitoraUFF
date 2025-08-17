@@ -1,6 +1,6 @@
 /venv/
 /env1/
 /old/OpenCVYolo/yoloDados/yolov3.weights
-/testYolo/venv
-/testYolo/assets
-/testYolo/models
+/YoloDetect/venv
+/YoloDetect/assets
+/YoloDetect/models
