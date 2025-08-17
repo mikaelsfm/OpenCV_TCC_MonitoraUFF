@@ -120,8 +120,9 @@ def main():
                         "MATILHA DETECTADA!",
                         (50, 50),
                         cv2.FONT_HERSHEY_SIMPLEX,
+                        1.5,
                         (0, 0, 255),
-                        3,          
+                        3,
                         cv2.LINE_AA
                     )
                    # Desenhar linhas entre cães próximos
