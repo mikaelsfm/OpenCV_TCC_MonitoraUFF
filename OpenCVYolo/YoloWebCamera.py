@@ -38,7 +38,7 @@ except IndexError:
     layers_names_output = [layers_names_all[i - 1] for i in network.getUnconnectedOutLayers()]
 
 
-camera = cv2.VideoCapture(2, cv2.CAP_DSHOW)
+camera = cv2.VideoCapture("rtsp://192.168.15.10:8085/live")
 if not camera.isOpened():
     print("Câmara 2 não encontrada. A tentar a câmara padrão (0)...")
     camera = cv2.VideoCapture(0)

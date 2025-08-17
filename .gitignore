@@ -1,2 +1,4 @@
 /venv/
+/env1/
 /OpenCVYolo/yoloDados/yolov3.weights
+/testYolo/venv
