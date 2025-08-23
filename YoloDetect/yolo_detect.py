@@ -3,12 +3,15 @@ import torch
 import cv2
 import numpy as np
 import random
+import face_recognition
+import dlib
+
 
 def detect_pack(boxes, class_ids, model):
     # Filtra apenas cães
     dog_indices = [i for i, cls in enumerate(class_ids) if model.names[cls] == "dog"]
 
-    if len(dog_indices) < 2:
+    if len(dog_indices) < 5:
         return False, []
 
     # Pega os centros das caixas dos cães
@@ -23,7 +26,7 @@ def detect_pack(boxes, class_ids, model):
     # Verifica proximidade entre câes
     near = []
     for i in range(len(centers)):
-        for j in range(i+1, len(centers)):
+        for j in range(i + 1, len(centers)):
             dist = np.linalg.norm(np.array(centers[i]) - np.array(centers[j]))
             if dist < 150:
                 near.append((centers[i], centers[j]))
@@ -31,6 +34,43 @@ def detect_pack(boxes, class_ids, model):
     if len(near) > 0:
         return True, near
     return False, []
+
+
+def recognize_faces(frame, boxes, class_ids, model, known_encodings, known_names):
+    recognized = []
+
+    for i, class_id in enumerate(class_ids):
+        class_name = model.names[class_id]
+
+        # Ajuste aqui: se YOLO detectar 'face' ou 'person' para rostos
+        if class_name not in ["person", "face"]:
+            continue
+
+        x1, y1, x2, y2 = map(int, boxes[i].xyxy[0].cpu().numpy())
+        cropped_face = frame[y1:y2, x1:x2]
+
+        # Converte para RGB
+        face_rgb = cv2.cvtColor(cropped_face, cv2.COLOR_BGR2RGB)
+
+        # Gera encoding do rosto
+        encodings = face_recognition.face_encodings(face_rgb)
+        if not encodings:
+            continue
+
+        encoding = encodings[0]
+
+        # Compara com a base conhecida
+        matches = face_recognition.compare_faces(known_encodings, encoding)
+        name = "Desconhecido"
+
+        if True in matches:
+            idx = matches.index(True)
+            name = known_names[idx]
+
+        recognized.append((name, (x1, y1, x2, y2)))
+
+    return recognized
+
 
 def main():
     # Verifica se CUDA está disponível
@@ -41,17 +81,28 @@ def main():
         print("CUDA não disponível, rodando na CPU")
         device = "cpu"
 
+    print(f"[INFO] Dlib CUDA: {'Ativado' if dlib.DLIB_USE_CUDA else 'Desativado'}")
+
     # Carrega o modelo YOLO
     model = YOLO("/models/yolo11l.pt")
+    model.to(device)
 
-    # # Inicializa a captura da webcam
-    # cap = cv2.VideoCapture(2)  # 0 para webcam padrão
-
-    # cap.set(cv2.CAP_PROP_FRAME_WIDTH, 1280)
-    # cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 720)
+    # Carrega rostos para serem reconhecidos
+    known_images = ["assets/faces/Mikael.jpg"]
+    known_names = ["Mikael"]
+    known_encodings = []
+    for img_path, name in zip(known_images, known_names):
+        image = face_recognition.load_image_file(img_path)
+        enc = face_recognition.face_encodings(image)
+        if enc:
+            known_encodings.append(enc[0])
 
     # Inicializa a captura da webcam
-    cap = cv2.VideoCapture('assets/dogs.mp4')  # 0 para webcam padrão
+    cap = cv2.VideoCapture(2)  # 0 para webcam padrão
+    # cap = cv2.VideoCapture('assets/2.mp4')  # Video teste para uso
+
+    cap.set(cv2.CAP_PROP_FRAME_WIDTH, 1280)
+    cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 720)
 
     cap.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
     cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 360)
@@ -81,8 +132,12 @@ def main():
             class_ids = []
             # Desenha as detecções no frame
             result = results[0]
+
             # Separado para fazer só um desenho por frame
             annotated_frame = result.plot()
+
+            # Não renderiza detecção de objetos
+            # annotated_frame = frame.copy()
 
             # Exibe informações das detecções no console
             if result.boxes is not None:
@@ -92,8 +147,8 @@ def main():
                     x1, y1, x2, y2 = box.xyxy[0].cpu().numpy()
                     # Obtém a confiança
                     confidence = box.conf[0].cpu().numpy()
-                    # Ignora detecções fracas
-                    if confidence < 0.5: 
+                    # # Ignora detecções fracas
+                    if confidence < 0.5:
                         continue
                     # Obtém a classe
                     class_id = int(box.cls[0].cpu().numpy())
@@ -128,6 +183,22 @@ def main():
                    # Desenhar linhas entre cães próximos
                 for (c1, c2) in near_dogs:
                     cv2.line(annotated_frame, c1, c2, (0, 0, 255), 2)
+
+                recognized_faces = recognize_faces(
+                    frame, boxes, class_ids, model, known_encodings, known_names
+                )
+
+                for name, (x1, y1, x2, y2) in recognized_faces:
+                    cv2.rectangle(annotated_frame, (x1, y1), (x2, y2), (0, 255, 0), 2)
+                    cv2.putText(
+                        annotated_frame,
+                        name,
+                        (x1, y1 - 10),
+                        cv2.FONT_HERSHEY_SIMPLEX,
+                        0.9,
+                        (0, 255, 0),
+                        2,
+                    )
 
         # Exibe o frame com as detecções
         cv2.imshow("YOLO Webcam Detection", annotated_frame)
