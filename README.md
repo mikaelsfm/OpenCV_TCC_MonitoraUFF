@@ -1,28 +1,26 @@
-# Sistema de Detecção de Matilhas com YOLO - Trabalho de Conclusão de Curso (UFF)
+# Sistema de Detecção com YOLO - Trabalho de Conclusão de Curso (UFF)
 
-Este projeto implementa um sistema inteligente de detecção de matilhas de cães utilizando YOLO (You Only Look Once) com a biblioteca Ultralytics. O sistema é capaz de detectar múltiplos cães em tempo real e identificar quando eles estão próximos o suficiente para formar uma matilha, emitindo alertas visuais.
+Este projeto implementa um sistema inteligente de **detecção de objetos** utilizando YOLO (You Only Look Once) com a biblioteca Ultralytics.  
+O sistema é capaz de identificar múltiplos objetos em tempo real, exibindo as detecções com bounding boxes e informações de confiança.  
+Como extensão, o projeto inclui uma funcionalidade específica para **detecção de matilhas de cães**, que identifica quando eles estão próximos o suficiente para formar um grupo.
+
+---
 
 ## Funcionalidades Principais
 
-### Detecção de Matilhas em Tempo Real
+### Detecção em Tempo Real
 - **Script:** `yolo_detect.py`
-- **Descrição:** Sistema completo de detecção de cães e identificação de matilhas usando YOLO v11
+- **Descrição:** Sistema completo de detecção de objetos com YOLO v11
 - **Recursos:**
-  - Detecção de múltiplos cães simultaneamente
-  - Análise de proximidade entre cães detectados
-  - Alerta visual quando matilha é identificada (tela pisca em vermelho)
-  - Linhas de conexão entre cães próximos
+  - Detecção de múltiplos objetos simultaneamente
+  - Bounding boxes com labels e confiança
   - Suporte a GPU (CUDA) para processamento acelerado
+  - Visualização em tempo real (webcam ou arquivo de vídeo)
 
-### Como Usar
-```bash
-cd YoloDetect
-python yolo_detect.py
-```
-
-**Controles:**
-- Pressione `q` para sair da aplicação
-- O sistema funciona com webcam ou arquivos de vídeo
+### Detecção de Matilhas (Feature Adicional)
+- Análise de proximidade entre cães detectados
+- Alerta visual quando matilha é identificada (tela pisca em vermelho)
+- Linhas de conexão entre cães próximos
 
 ---
 
@@ -99,25 +97,24 @@ model = YOLO("/models/yolo11l.pt")  # Altere para o modelo desejado
 
 ### Configuração de Detecção
 - **Limiar de confiança:** 0.5 (linha 96)
-- **Distância para matilha:** 150 pixels (linha 25)
+- **Distância para matilha (feature extra):** 150 pixels (linha 25)
 - **Resolução:** 640x360 (linhas 50-51)
 
 ---
 
 ## Como Funciona
 
-### Algoritmo de Detecção de Matilhas
-1. **Detecção de Objetos:** YOLO identifica todos os cães no frame
+### Algoritmo de Detecção
+1. **Detecção de Objetos:** YOLO identifica todos os objetos no frame
 2. **Filtragem:** Remove detecções com confiança < 0.5
-3. **Análise de Proximidade:** Calcula distância entre centros dos cães
-4. **Identificação de Matilha:** Se cães estão a menos de 150 pixels, forma matilha
-5. **Alerta Visual:** Tela pisca em vermelho + texto "MATILHA DETECTADA!"
+3. **Overlay Visual:** Exibe bounding boxes e labels
+4. **Alerta de Matilha (opcional):** Quando cães estão próximos, o sistema ativa o aviso visual
 
 ### Recursos Técnicos
 - **GPU Acceleration:** Detecta automaticamente CUDA disponível
 - **Processamento em Tempo Real:** 30+ FPS com GPU
-- **Múltiplas Classes:** Suporte a detecção de outros objetos além de cães
-- **Interface Visual:** Overlay com bounding boxes e informações
+- **Múltiplas Classes:** Suporte a detecção de diferentes objetos
+- **Interface Visual:** Exibição clara das detecções
 
 ---
 
@@ -138,7 +135,7 @@ python yolo_detect.py
 CUDA disponível: NVIDIA GeForce RTX 3080
 Webcam iniciada. Pressione 'q' para sair.
 Detectado: dog - Confiança: 0.87
-Detectado: dog - Confiança: 0.92
+Detectado: person - Confiança: 0.91
 ```
 
 ---
@@ -146,14 +143,14 @@ Detectado: dog - Confiança: 0.92
 ## Casos de Uso
 
 ### Aplicações Práticas
-- **Segurança Pública:** Monitoramento de matilhas em áreas urbanas
-- **Proteção Animal:** Identificação de grupos de cães soltos
-- **Pesquisa:** Estudos comportamentais de cães em grupo
+- **Segurança Pública:** Monitoramento de áreas urbanas
+- **Proteção Animal:** Identificação de cães soltos em grupo
+- **Pesquisa:** Estudos comportamentais de animais
 - **Educação:** Demonstração de visão computacional aplicada
 
 ### Extensões Possíveis
 - Detecção de outros animais
-- Análise de comportamento de grupo
+- Análise de comportamento em grupo
 - Sistema de alerta por email/SMS
 - Interface web para monitoramento remoto
 
@@ -162,7 +159,7 @@ Detectado: dog - Confiança: 0.92
 ## Desenvolvimento
 
 ### Estrutura do Código
-- **Função `detect_pack()`:** Lógica de detecção de matilhas
+- **Função `detect_pack()`:** Lógica de detecção de matilhas (opcional)
 - **Função `main()`:** Loop principal e interface
 - **Configurações:** Parâmetros ajustáveis no topo do arquivo
 
@@ -183,7 +180,7 @@ Detectado: dog - Confiança: 0.92
 ### Otimizações
 - Uso de GPU CUDA quando disponível
 - Processamento de frames otimizado
-- Modelo configurável para velocidade/precisão
+- Modelos ajustáveis para velocidade/precisão
 
 ---
 
