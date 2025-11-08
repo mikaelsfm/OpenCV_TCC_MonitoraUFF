@@ -1,6 +1,7 @@
 // yolo_detect_fixed_v8.cpp
 #include <opencv2/opencv.hpp>
 #include <opencv2/dnn.hpp>
+#include <unistd.h>
 #include <iostream>
 #include <fstream>
 #include <vector>
@@ -32,10 +33,16 @@ bool detect_pack(const vector<Detection>& detections) {
     return false;
 }
 
-int main() {
-    string modelPath = "../models/yolov8l.onnx";
-    string classesPath = "../models/coco.names";
-    string imagePath = "../assets/test.jpg";
+int main(int argc, char** argv) {
+    // Verifica se o caminho da imagem foi passado via argumento
+    if (argc < 2) {
+        cerr << "Uso: " << argv[0] << " <caminho_da_imagem>" << endl;
+        return -1;
+    }
+
+    string imagePath = argv[1];  // <-- caminho recebido do Flask
+    string modelPath = "/home/monitora-uff/OpenCV_TCC_MonitoraUFF/YoloDetect/models/yolov8l.onnx";
+    string classesPath = "/home/monitora-uff/OpenCV_TCC_MonitoraUFF/YoloDetect/models/coco.names";
 
     const int inputWidth = 640;
     const int inputHeight = 640;
@@ -81,7 +88,6 @@ int main() {
 
     Mat image = imread(imagePath);
     cout << "Carregando imagem de: " << imagePath << endl;
-    cout << "Dimensões da imagem: " << image.cols << "x" << image.rows << endl;
     if (image.empty()) {
         cerr << "Erro: não foi possível carregar a imagem." << endl;
         return -1;
@@ -224,6 +230,23 @@ int main() {
         detections.push_back(d);
     }
 
+     for (const auto& d : detections) {
+        rectangle(image, d.box, Scalar(0, 255, 0), 2);
+        string label = d.class_name + " " + format("%.2f", d.confidence);
+        int baseLine = 0;
+        Size labelSize = getTextSize(label, FONT_HERSHEY_SIMPLEX, 0.5, 1, &baseLine);
+        int top = max(d.box.y, labelSize.height);
+        rectangle(image, Point(d.box.x, top - labelSize.height),
+                  Point(d.box.x + labelSize.width, top + baseLine),
+                  Scalar(0, 255, 0), FILLED);
+        putText(image, label, Point(d.box.x, top),
+                FONT_HERSHEY_SIMPLEX, 0.5, Scalar(0, 0, 0), 1);
+    }
+
+    string outputImagePath = "result.jpg";
+    imwrite(outputImagePath, image);
+    cout << "Imagem anotada salva em: " << outputImagePath << endl;
+
     bool is_pack = detect_pack(detections);
     if (is_pack) cout << "\n>>> ALERTA: Matilha detectada na imagem! <<<\n" << endl;
 
@@ -242,6 +265,14 @@ int main() {
 
 
     cout << j.dump(2) << endl;
+
+    char cwd[1024];
+    if (getcwd(cwd, sizeof(cwd)) != NULL) {
+        std::cout << "Diretório atual: " << cwd << std::endl;
+    } else {
+        perror("getcwd() error");
+    }
+
 
     ofstream outFile("result.json");
     outFile << j.dump(2);
