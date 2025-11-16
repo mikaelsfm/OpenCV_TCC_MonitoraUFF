@@ -24,8 +24,8 @@ Como extensão, o projeto inclui uma funcionalidade específica para **detecçã
 
 ```
 YoloDetect/
-├── yolo_detect.cpp/.cpp    # Implementações C++ de exemplo (live, rtsp, vídeo)
-├── yolo_detect_video.cpp   # Detector para webcam/arquivo usando ONNX + OpenCV DNN
+├── yolo_detect.cpp         # Implementações C++ por imagem
+├── yolo_detect_video.cpp   # Detector para webcam/arquivo
 ├── yolo_detect_rtsp.cpp    # Variante para entrada RTSP
 ├── exportYolo.py           # Script Python (Ultralytics) para exportar modelos para ONNX (opcional)
 ├── server.py               # Gateway Flask — recebe upload ou RTSP e executa os binários C++
@@ -46,7 +46,7 @@ YoloDetect/
 
 ### Dependências Python (para server/export — opcionais)
 ```bash
-python -m venv venv
+python3 -m venv venv
 source venv/bin/activate
 pip install ultralytics flask werkzeug
 # se quiser manipular/rodar inferência em Python (opcional):
@@ -110,7 +110,7 @@ O servidor executa o binário (definido na variável `YOLO_BIN` em `server.py`) 
 Para rodar o servidor:
 
 ```bash
-python YoloDetect/server.py
+python3 YoloDetect/server.py
 ```
 
 ## Exportar modelos com Ultralytics (script)
@@ -161,7 +161,5 @@ Sugestões de melhorias:
 Projeto acadêmico (TCC UFF). Consulte o autor/maintainer para detalhes sobre uso e redistribuição.
 
 ---
-
-Se quiser, eu atualizo também o README dentro de `YoloDetect/` com instruções específicas por arquivo e exemplos de linha de comando mais detalhados.
 
 **Desenvolvido para o TCC da UFF**
