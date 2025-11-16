@@ -46,8 +46,8 @@ int main(int argc, char** argv) {
 
     const int inputWidth = 640;
     const int inputHeight = 640;
-    const float scoreThreshold = 0.01f;
-    const float nmsThreshold = 0.01f;
+    const float scoreThreshold = 0.25f;
+    const float nmsThreshold = 0.45f;
 
     vector<string> class_names;
     {
@@ -186,10 +186,10 @@ int main(int argc, char** argv) {
             continue;
         }
 
-        int x = static_cast<int>((cx - w / 2.0f) * inputWidth);
-        int y = static_cast<int>((cy - h / 2.0f) * inputHeight);
-        int width = static_cast<int>(w * inputWidth);
-        int height = static_cast<int>(h * inputHeight);
+        int x = static_cast<int>(cx - w / 2.0f);
+        int y = static_cast<int>(cy - h / 2.0f);
+        int width = static_cast<int>(w);
+        int height = static_cast<int>(h);
 
         float xScale = static_cast<float>(image.cols) / inputWidth;
         float yScale = static_cast<float>(image.rows) / inputHeight;
@@ -220,6 +220,12 @@ int main(int argc, char** argv) {
     }
 
     cout << "Detecções após NMS: " << nmsIndices.size() << endl;
+
+    vector<Scalar> colors;
+    RNG rng(12345); // Gerador de números aleatórios
+    for (size_t i = 0; i < class_names.size(); i++) {
+        colors.push_back(Scalar(rng.uniform(0, 255), rng.uniform(0, 255), rng.uniform(0, 255)));
+    }
 
     vector<Detection> detections;
     for (int idx : nmsIndices) {

@@ -9,5 +9,5 @@ include_directories(
     ${CMAKE_SOURCE_DIR}/include
 )
 
-add_executable(yolo_detect_rtsp yolo_detect_rtsp.cpp)
-target_link_libraries(yolo_detect_rtsp ${OpenCV_LIBS})
+add_executable(yolo_detect_video yolo_detect_video.cpp)
+target_link_libraries(yolo_detect_video ${OpenCV_LIBS})
