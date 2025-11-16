@@ -1,4 +1,4 @@
-# Sistema de Detecção com YOLO - Trabalho de Conclusão de Curso (UFF)
+## Sistema de Detecção com YOLO — TCC (UFF)
 
 Este projeto implementa um sistema inteligente de **detecção de objetos** utilizando YOLO (You Only Look Once) com a biblioteca Ultralytics.  
 O sistema é capaz de identificar múltiplos objetos em tempo real, exibindo as detecções com bounding boxes e informações de confiança.  
@@ -8,19 +8,15 @@ Como extensão, o projeto inclui uma funcionalidade específica para **detecçã
 
 ## Funcionalidades Principais
 
-### Detecção em Tempo Real
-- **Script:** `yolo_detect.py`
-- **Descrição:** Sistema completo de detecção de objetos com YOLO v11
-- **Recursos:**
-  - Detecção de múltiplos objetos simultaneamente
-  - Bounding boxes com labels e confiança
-  - Suporte a GPU (CUDA) para processamento acelerado
-  - Visualização em tempo real (webcam ou arquivo de vídeo)
+### Detecção em Tempo Real (implementação atual)
+- Implementação principal em C++ usando OpenCV DNN e modelos ONNX.
+- Arquivos C++ realizam pré-processamento, inferência e pós-processamento (NMS, desenho de bounding boxes).
+- Suporte a aceleração por CUDA quando disponível (via backend/target do OpenCV DNN).
 
-### Detecção de Matilhas (Feature Adicional)
-- Análise de proximidade entre cães detectados
-- Alerta visual quando matilha é identificada (tela pisca em vermelho)
-- Linhas de conexão entre cães próximos
+### Detecção de Matilhas (feature adicional)
+- Lógica que agrupa detecções da classe `dog` por proximidade e sinaliza quando há um agrupamento (matilha).
+- Implementação no código C++ na função `detect_pack` (pode ser ajustada conforme necessidade).
+
 
 ---
 
@@ -28,17 +24,14 @@ Como extensão, o projeto inclui uma funcionalidade específica para **detecçã
 
 ```
 YoloDetect/
-├── yolo_detect.py          # Script principal
-├── models/                 # Modelos YOLO
-│   ├── yolo11l.pt         # Modelo principal (49MB)
-│   ├── yolo11n.pt         # Modelo nano (5.4MB)
-│   ├── yolo11x.pt         # Modelo extra large (109MB)
-│   └── ...                # Outros modelos disponíveis
-├── assets/                 # Arquivos de mídia
-│   ├── dogs.mp4           # Vídeo de teste
-│   ├── test.jpg           # Imagens de teste
-│   └── result.jpg         # Resultados salvos
-└── venv/                  # Ambiente virtual Python
+├── yolo_detect.cpp/.cpp    # Implementações C++ de exemplo (live, rtsp, vídeo)
+├── yolo_detect_video.cpp   # Detector para webcam/arquivo usando ONNX + OpenCV DNN
+├── yolo_detect_rtsp.cpp    # Variante para entrada RTSP
+├── exportYolo.py           # Script Python (Ultralytics) para exportar modelos para ONNX (opcional)
+├── server.py               # Gateway Flask — recebe upload ou RTSP e executa os binários C++
+├── models/                 # Modelos YOLO (.pt / .onnx) e coco.names
+├── assets/                 # Vídeos/imagens de teste
+└── build/                  # Saída do cmake / executáveis
 ```
 
 ---
@@ -46,170 +39,129 @@ YoloDetect/
 ## Instalação
 
 ### Pré-requisitos
-- Python 3.8+
-- CUDA (opcional, para aceleração GPU)
+- Sistema com compilador C++ (g++/clang) e CMake
+- OpenCV (com módulo dnn). Para aceleração por GPU, use uma build do OpenCV com suporte a CUDA
+- Python 3.8+ (apenas para o `server.py` e para o utilitário `exportYolo.py`, se for usar)
 - Webcam ou arquivo de vídeo para teste
 
-### Dependências
+### Dependências Python (para server/export — opcionais)
 ```bash
-pip install ultralytics
-pip install torch torchvision
-pip install opencv-python
-pip install numpy
-```
-
-### Configuração do Ambiente
-```bash
-# Clone o repositório
-git clone [URL_DO_REPOSITORIO]
-
-# Entre na pasta do projeto
-cd YoloDetect
-
-# Crie um ambiente virtual (recomendado)
 python -m venv venv
-
-# Ative o ambiente virtual
-# Windows:
-venv\Scripts\activate
-# Linux/Mac:
 source venv/bin/activate
-
-# Instale as dependências
-pip install -r requirements.txt
+pip install ultralytics flask werkzeug
+# se quiser manipular/rodar inferência em Python (opcional):
+pip install torch torchvision opencv-python numpy
 ```
 
----
+## Construir os binários C++ (OpenCV + ONNX)
 
-## Configuração
+Os exemplos C++ usam CMake. No diretório `YoloDetect/` execute:
 
-### Modelos Disponíveis
-O projeto inclui vários modelos YOLO v11:
-- **yolo11n.pt** (5.4MB) - Modelo nano, mais rápido
-- **yolo11l.pt** (49MB) - Modelo large, equilíbrio velocidade/precisão
-- **yolo11x.pt** (109MB) - Modelo extra large, máxima precisão
-
-### Personalização
-Para alterar o modelo usado, edite a linha 44 em `yolo_detect.py`:
-```python
-model = YOLO("/models/yolo11l.pt")  # Altere para o modelo desejado
-```
-
-### Configuração de Detecção
-- **Limiar de confiança:** 0.5 (linha 96)
-- **Distância para matilha (feature extra):** 150 pixels (linha 25)
-- **Resolução:** 640x360 (linhas 50-51)
-
----
-
-## Como Funciona
-
-### Algoritmo de Detecção
-1. **Detecção de Objetos:** YOLO identifica todos os objetos no frame
-2. **Filtragem:** Remove detecções com confiança < 0.5
-3. **Overlay Visual:** Exibe bounding boxes e labels
-4. **Alerta de Matilha (opcional):** Quando cães estão próximos, o sistema ativa o aviso visual
-
-### Recursos Técnicos
-- **GPU Acceleration:** Detecta automaticamente CUDA disponível
-- **Processamento em Tempo Real:** 30+ FPS com GPU
-- **Múltiplas Classes:** Suporte a detecção de diferentes objetos
-- **Interface Visual:** Exibição clara das detecções
-
----
-
-## Uso
-
-### Execução Básica
 ```bash
-python yolo_detect.py
+cd YoloDetect
+mkdir -p build && cd build
+cmake ..
+make -j$(nproc)
 ```
 
-### Modos de Entrada
-1. **Webcam:** Descomente linhas 42-45 e comente linha 47
-2. **Arquivo de Vídeo:** Use linha 47 (padrão: `assets/dogs.mp4`)
-3. **Imagem:** Modifique para `cv2.imread()`
+Isso produz executáveis (por exemplo `yolo_detect_video`) em `YoloDetect/build/`.
 
-### Exemplo de Saída
+Observações:
+- Os exemplos esperam encontrar o modelo ONNX em `YoloDetect/models/` (por exemplo `yolov8l.onnx` ou `yolo11l.onnx`). Ajuste o caminho no código se necessário.
+- O C++ tenta usar backend CUDA/target CUDA quando disponível; caso contrário usa CPU.
+
+## Rodando o detector (binário C++)
+
+Exemplo para webcam (executável `yolo_detect_video`):
+
+```bash
+./build/yolo_detect_video
 ```
-CUDA disponível: NVIDIA GeForce RTX 3080
-Webcam iniciada. Pressione 'q' para sair.
-Detectado: dog - Confiança: 0.87
-Detectado: person - Confiança: 0.91
+
+Exemplo para arquivo de vídeo (quando o executável aceitar caminho):
+
+```bash
+./build/yolo_detect_video ../assets/dogs.mp4
 ```
 
----
+O programa desenha bounding boxes, calcula uma métrica simples para "matilha" (detecta grupos de cães) e salva resultados periodicamente em `result_video.json`.
 
-## Casos de Uso
+## Gateway HTTP (Flask)
 
-### Aplicações Práticas
-- **Segurança Pública:** Monitoramento de áreas urbanas
-- **Proteção Animal:** Identificação de cães soltos em grupo
-- **Pesquisa:** Estudos comportamentais de animais
-- **Educação:** Demonstração de visão computacional aplicada
+O arquivo `YoloDetect/server.py` oferece um endpoint simples para enviar vídeos ou uma URL RTSP para processamento.
 
-### Extensões Possíveis
-- Detecção de outros animais
-- Análise de comportamento em grupo
-- Sistema de alerta por email/SMS
-- Interface web para monitoramento remoto
+Endpoints principais:
+- POST `/run_yolo` — aceita um campo `rtsp` (URL) ou um `file` multipart para upload.
 
----
+Exemplo (upload de arquivo):
 
-## Desenvolvimento
+```bash
+curl -F "file=@/caminho/para/video.mp4" http://localhost:5005/run_yolo
+```
 
-### Estrutura do Código
-- **Função `detect_pack()`:** Lógica de detecção de matilhas (opcional)
-- **Função `main()`:** Loop principal e interface
-- **Configurações:** Parâmetros ajustáveis no topo do arquivo
+Exemplo (usar RTSP):
 
-### Debugging
-- Logs detalhados no console
-- Visualização em tempo real
-- Salvamento de frames com detecções
+```bash
+curl -X POST -F "rtsp=rtsp://usuario:senha@ip:porta/stream" http://localhost:5005/run_yolo
+```
 
----
+O servidor executa o binário (definido na variável `YOLO_BIN` em `server.py`) e tenta ler um arquivo `result.json` gerado pelo processo para devolver as detecções no corpo da resposta.
 
-## Performance
+Para rodar o servidor:
 
-### Métricas Típicas
-- **FPS:** 30-60 (dependendo do hardware)
-- **Precisão:** 85-95% (modelo yolo11l)
-- **Latência:** <100ms (com GPU)
+```bash
+python YoloDetect/server.py
+```
 
-### Otimizações
-- Uso de GPU CUDA quando disponível
-- Processamento de frames otimizado
-- Modelos ajustáveis para velocidade/precisão
+## Exportar modelos com Ultralytics (script)
 
----
+O `YoloDetect/exportYolo.py` é um exemplo mínimo que carrega um modelo `.pt` com a API Ultralytics e exporta para ONNX:
 
-## Contribuição
+```python
+from ultralytics import YOLO
+model = YOLO("models/yolov8x.pt")
+model.export(format="onnx", opset=13, simplify=True, dynamic=False)
+```
 
-Este projeto foi desenvolvido como parte do Trabalho de Conclusão de Curso na UFF. Contribuições são bem-vindas!
+Use esse script para gerar os `.onnx` necessários pelos exemplos C++.
 
-### Como Contribuir
-1. Fork o projeto
-2. Crie uma branch para sua feature
-3. Commit suas mudanças
-4. Push para a branch
-5. Abra um Pull Request
+## Modelos incluídos
 
----
+Em `YoloDetect/models/` há exemplos como:
+
+- `yolov8l.pt`, `yolov8x.pt`, `yolov8l.onnx`, `yolov8x.onnx`
+- `yolo11l.pt`, `yolo11n.pt`, `yolo11l.onnx`, etc.
+- `coco.names` — classes padrão
+
+Substitua ou force o caminho do modelo no código conforme sua preferência.
+
+## Detecção de "matilha" (pack detection)
+
+Uma rotina simples nos exemplos calcula o centro de cada detecção de classe `dog`, mede distâncias e decide quando vários cães estão próximos (parâmetros estão hard-coded no código C++ — por exemplo proximidade = 0.5 * min(width,height) do frame). Você pode ajustar esse critério no código fonte (função `detect_pack`).
+
+## Boas práticas e dicas
+
+- Para melhor performance use OpenCV com suporte CUDA e um ONNX otimizado para sua GPU.
+- Se usar o gateway Flask em produção, proteja o endpoint e use um gerenciador WSGI (gunicorn/uvicorn) e limites de tempo/recursos.
+- Ao gerar ONNX com `exportYolo.py`, confirme o `opset` e execute uma inferência rápida para validar a compatibilidade com sua versão do OpenCV.
+
+## Como contribuir
+
+1. Fork
+2. Crie uma branch descriptiva
+3. Abra um Pull Request com mudanças pequenas e documentadas
+
+Sugestões de melhorias:
+- adicionar suporte direto a modelos PyTorch em Python
+- endpoint autenticado e fila de jobs para processamentos longos
+- painel web com visualização de detecções em tempo real
 
 ## Licença
 
-Projeto acadêmico desenvolvido na Universidade Federal Fluminense (UFF).
+Projeto acadêmico (TCC UFF). Consulte o autor/maintainer para detalhes sobre uso e redistribuição.
 
 ---
 
-## Suporte
-
-Para dúvidas ou problemas:
-- Consulte os comentários no código
-- Verifique se todas as dependências estão instaladas
-- Confirme se o CUDA está configurado (se usando GPU)
-
----
+Se quiser, eu atualizo também o README dentro de `YoloDetect/` com instruções específicas por arquivo e exemplos de linha de comando mais detalhados.
 
 **Desenvolvido para o TCC da UFF**
