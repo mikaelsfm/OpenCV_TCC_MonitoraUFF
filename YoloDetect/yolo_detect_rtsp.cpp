@@ -60,15 +60,6 @@ int main(int argc, char** argv) {
         return -1;
     }
 
-    vector<Scalar> colors;
-    for (size_t i = 0; i < class_names.size(); i++) {
-    colors.emplace_back(
-        (uchar)(37 * i % 255),
-        (uchar)(17 * i % 255),
-        (uchar)(29 * i % 255)
-    );
-}
-
     string line;
     while (getline(ifs, line)) {
         if (!line.empty()) {
@@ -77,6 +68,15 @@ int main(int argc, char** argv) {
         }
     }
     cout << "[INFO] " << class_names.size() << " classes carregadas." << endl;
+
+    vector<Scalar> colors;
+    for (size_t i = 0; i < class_names.size(); i++) {
+        colors.emplace_back(
+            (uchar)(37 * i % 255),
+            (uchar)(17 * i % 255),
+            (uchar)(29 * i % 255)
+        );
+    }
 
     dnn::Net net;
     try {
@@ -222,22 +222,23 @@ int main(int argc, char** argv) {
             rectangle(frame, d.box, color, 2);
         
             string label = d.class_name + " " + format("%.2f", d.confidence);
-            
+        
             int baseLine = 0;
-            Size labelSize = getTextSize(label, FONT_HERSHEY_SIMPLEX, 0.5, 1, &baseLine);
+            Size labelSize = getTextSize(label, FONT_HERSHEY_SIMPLEX, 0.7, 2, &baseLine);
         
             Rect bgRect(
                 d.box.x,
                 d.box.y,
-                labelSize.width + 6,
+                max(labelSize.width + 10, d.box.width),
                 labelSize.height + baseLine + 6
             );
         
             rectangle(frame, bgRect, color, FILLED);
+        
             putText(frame, label,
-                Point(d.box.x + 3, d.box.y + labelSize.height + 1),
-                FONT_HERSHEY_SIMPLEX, 0.5,
-                Scalar(0, 0, 0), 1
+                Point(d.box.x + 5, d.box.y + labelSize.height),
+                FONT_HERSHEY_SIMPLEX, 0.7,
+                Scalar(0, 0, 0), 2
             );
         }
 
