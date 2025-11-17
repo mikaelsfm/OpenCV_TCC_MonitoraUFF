@@ -41,8 +41,8 @@ bool detect_pack(const vector<Detection>& detections, const Size& frameSize) {
     return (dogCount >= 3 && closePairs >= 2);
 }
 
-int main() {
-    string source = "../assets/dogs.mp4";
+int main(int argc, char** argv) {
+    string source = argv[1];
     cout << "[INFO] Fonte de vídeo: " << source << endl;
 
     string modelPath = "/home/monitora-uff/OpenCV_TCC_MonitoraUFF/YoloDetect/models/yolov8l.onnx";
