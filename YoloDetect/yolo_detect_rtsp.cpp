@@ -60,6 +60,15 @@ int main(int argc, char** argv) {
         return -1;
     }
 
+    vector<Scalar> colors;
+    for (size_t i = 0; i < class_names.size(); i++) {
+    colors.emplace_back(
+        (uchar)(37 * i % 255),
+        (uchar)(17 * i % 255),
+        (uchar)(29 * i % 255)
+    );
+}
+
     string line;
     while (getline(ifs, line)) {
         if (!line.empty()) {
@@ -207,11 +216,29 @@ int main(int argc, char** argv) {
         }
 
         for (auto& d : detections) {
-            Scalar color = (d.class_name == "dog") ? Scalar(0, 255, 0) : Scalar(255, 255, 0);
+            int classIdx = find(class_names.begin(), class_names.end(), d.class_name) - class_names.begin();
+            Scalar color = colors[classIdx % colors.size()];
+        
             rectangle(frame, d.box, color, 2);
+        
             string label = d.class_name + " " + format("%.2f", d.confidence);
-            putText(frame, label, Point(d.box.x, d.box.y - 5),
-                    FONT_HERSHEY_SIMPLEX, 0.5, color, 1);
+            
+            int baseLine = 0;
+            Size labelSize = getTextSize(label, FONT_HERSHEY_SIMPLEX, 0.5, 1, &baseLine);
+        
+            Rect bgRect(
+                d.box.x,
+                d.box.y,
+                labelSize.width + 6,
+                labelSize.height + baseLine + 6
+            );
+        
+            rectangle(frame, bgRect, color, FILLED);
+            putText(frame, label,
+                Point(d.box.x + 3, d.box.y + labelSize.height + 1),
+                FONT_HERSHEY_SIMPLEX, 0.5,
+                Scalar(0, 0, 0), 1
+            );
         }
 
         imshow("YOLOv8L Real-time", frame);
