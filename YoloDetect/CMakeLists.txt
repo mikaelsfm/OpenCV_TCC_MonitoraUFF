@@ -4,6 +4,7 @@ project(YoloGPU)
 # 1. Configura o C++ (C++11 ou superior é necessário para OpenCV 4)
 set(CMAKE_CXX_STANDARD 11)
 set(CMAKE_CXX_STANDARD_REQUIRED TRUE)
+set(CMAKE_CUDA_STANDARD 11)
 
 # 2. Encontra o OpenCV (que você acabou de instalar)
 find_package(OpenCV REQUIRED)
@@ -21,10 +22,10 @@ include_directories(
 )
 
 # 5. Define o executável (nome do app e arquivo fonte)
-add_executable(yolo_detect_rtsp yolo_detect_rtsp.cpp)
+add_executable(yolo_detect_rtsp_novideo yolo_detect_rtsp_novideo.cpp)
 
 # 6. Linka todas as bibliotecas necessárias ao executável
-target_link_libraries(yolo_detect_rtsp
+target_link_libraries(yolo_detect_rtsp_novideo
     ${OpenCV_LIBS}      # Linka todos os módulos do OpenCV (cudacodec, dnn, etc.)
     OpenGL::GL          # Linka libGL (OpenGL)
     OpenGL::GLU         # Linka libGLU (Utilitários OpenGL)

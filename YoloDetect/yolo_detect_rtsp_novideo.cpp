@@ -1,10 +1,5 @@
 /*
- * YOLOv8n + OpenCV CUDA + NVDEC (GTX 1050) - VISUAL CLARO
- *
- * Pipeline Otimizado:
- * 1. Decodificação e Processamento: 100% GPU.
- * 2. Inferência: 100% GPU.
- * 3. Visualização: CPU (Estilo "Bounding Box" com cores claras).
+ * YOLOv8l + OpenCV CUDA + NVDEC (GTX 1050) - MODO HEADLESS FINAL
  */
 
 #include <opencv2/opencv.hpp>
@@ -14,8 +9,8 @@
 #include <opencv2/cudaimgproc.hpp>
 #include <opencv2/cudafilters.hpp>
 #include <opencv2/dnn.hpp>
-#include <opencv2/highgui.hpp>
 
+// Biblioteca JSON
 #include <nlohmann/json.hpp>
 
 #include <iostream>
@@ -27,6 +22,7 @@
 #include <chrono>
 #include <string>
 #include <cmath>
+
 
 using json = nlohmann::json;
 using namespace cv;
@@ -48,7 +44,7 @@ struct Detection {
     Rect box;
 };
 
-// --- Lógica de Matilha (CPU) ---
+// --- Lógica de Matilha (Processamento leve de metadados na CPU) ---
 bool detect_pack(const vector<Detection>& detections, const Size& frameSize) {
     vector<Point> centers;
     for (const auto& d : detections) {
@@ -94,17 +90,6 @@ int main(int argc, char** argv) {
         if (!line.empty()) class_names.push_back(line);
     }
 
-    // --- GERAÇÃO DE CORES CLARAS ---
-    // A fórmula adiciona 128 ao valor base, garantindo brilho alto (range 128-255)
-    vector<Scalar> colors;
-    for (size_t i = 0; i < class_names.size(); i++) {
-        colors.emplace_back(
-            (uchar)(128 + (37 * i % 127)), // Blue (Alto)
-            (uchar)(128 + (17 * i % 127)), // Green (Alto)
-            (uchar)(128 + (29 * i % 127))  // Red (Alto)
-        );
-    }
-
     // Carrega Modelo (Backend CUDA)
     dnn::Net net = dnn::readNetFromONNX(modelPath);
     net.setPreferableBackend(dnn::DNN_BACKEND_CUDA);
@@ -125,20 +110,17 @@ int main(int argc, char** argv) {
         return -1;
     }
 
-    string windowName = "YOLOv8n GPU + Cores Claras";
-    namedWindow(windowName, WINDOW_AUTOSIZE);
-
-    // Alocação de Memória
-    cuda::GpuMat d_frame_bgra;    // Decoder output
-    cuda::GpuMat d_frame_rgb;     // Input Rede
+    // Alocação de Memória (VRAM)
+    cuda::GpuMat d_frame_bgra;    // 4 canais (Decoder)
+    cuda::GpuMat d_frame_rgb;     // 3 canais (YOLO)
     cuda::GpuMat d_frame_float;   // Normalizado
     cuda::GpuMat d_frame_resized; // 640x640
-    cuda::GpuMat d_frame_display; // BGR para display
 
-    Mat h_frame_resized;          // CPU Buffer (Input Blob)
-    Mat h_display;                // CPU Buffer (Output Visual)
+    // Buffer de CPU (Apenas para a entrada da rede - Pequeno)
+    Mat h_frame_resized; 
 
     cuda::Stream stream;
+
     json j_log;
     j_log["frames"] = json::array();
 
@@ -146,14 +128,17 @@ int main(int argc, char** argv) {
     int failCount = 0;
     const int inputSize = 640;
 
-    cout << "[INFO] Iniciando pipeline..." << endl;
+    cout << "[INFO] Iniciando inferência HEADLESS (Sem Display)..." << endl;
     double t0_global = (double)getTickCount();
 
     while (running) {
         bool success = false;
         try {
+            // 1. Decodificação (100% GPU)
             success = reader->nextFrame(d_frame_bgra, stream);
-        } catch (const cv::Exception& e) { break; }
+        } catch (const cv::Exception& e) {
+            break;
+        }
 
         if (!success) {
             if (++failCount > 30) break; 
@@ -165,32 +150,35 @@ int main(int argc, char** argv) {
         if (d_frame_bgra.empty()) continue;
         frameCount++;
 
-        // 1. Pré-processamento (100% GPU)
+        // 2. Pré-processamento (100% GPU)
+        // BGRA -> RGB
         if (d_frame_bgra.channels() == 4)
             cuda::cvtColor(d_frame_bgra, d_frame_rgb, COLOR_BGRA2RGB, 0, stream);
         else
             cuda::cvtColor(d_frame_bgra, d_frame_rgb, COLOR_BGR2RGB, 0, stream);
 
+        // Normaliza e Resize
         d_frame_rgb.convertTo(d_frame_float, CV_32F, 1.0 / 255.0, stream);
         cuda::resize(d_frame_float, d_frame_resized, Size(inputSize, inputSize), 0, 0, INTER_LINEAR, stream);
 
-        // 2. Ponte Mínima para Inferência (GPU -> CPU)
+        // 3. Ponte para Entrada (Download Mínimo)
+        // Baixa APENAS o 640x640 para criar o Blob.
         d_frame_resized.download(h_frame_resized, stream);
         stream.waitForCompletion(); 
 
+        // Passamos 'h_frame_resized' (CPU) em vez de 'd_frame_resized' (GPU)
         Mat blob = dnn::blobFromImage(h_frame_resized, 1.0, Size(), Scalar(), false, false);
-        net.setInput(blob); 
+        net.setInput(blob); // Upload automático para a GPU acontece aqui
 
-        // 3. Inferência (100% GPU)
+        // 4. Inferência (100% GPU)
         vector<Mat> outputs;
         net.forward(outputs, net.getUnconnectedOutLayersNames());
 
-        // 4. Parsing (CPU)
-        vector<Detection> final_detections;
-        bool is_pack = false;
-
+        // 5. Parsing de Resultados (CPU - Rápido)
         if (!outputs.empty()) {
             Mat out_t = (outputs[0].dims == 3) ? outputs[0].reshape(1, outputs[0].size[1]).t() : outputs[0];
+            
+            // Fatores de escala baseados no tamanho original (que está na GPU, mas sabemos o tamanho)
             float x_factor = (float)d_frame_bgra.cols / inputSize;
             float y_factor = (float)d_frame_bgra.rows / inputSize;
             float* data = (float*)out_t.data;
@@ -223,6 +211,7 @@ int main(int argc, char** argv) {
             vector<int> indices;
             dnn::NMSBoxes(boxes, confidences, 0.25f, 0.45f, indices);
 
+            vector<Detection> final_detections;
             for (int idx : indices) {
                 Detection d;
                 d.class_id = classIds[idx];
@@ -231,15 +220,16 @@ int main(int argc, char** argv) {
                 d.box = boxes[idx];
                 final_detections.push_back(d);
             }
-            
-            is_pack = detect_pack(final_detections, Size(d_frame_bgra.cols, d_frame_bgra.rows));
 
-            // JSON Log
+            bool is_pack = detect_pack(final_detections, Size(d_frame_bgra.cols, d_frame_bgra.rows));
+
+            // 6. Exportação JSON (Sem desenho, sem display)
             if (frameCount % 12 == 0) {
                 json frame_data;
                 frame_data["frame_id"] = frameCount;
                 frame_data["pack_detected"] = is_pack;
                 frame_data["detections"] = json::array();
+
                 for (const auto& d : final_detections) {
                     frame_data["detections"].push_back({
                         {"class", d.class_name},
@@ -248,70 +238,18 @@ int main(int argc, char** argv) {
                     });
                 }
                 j_log["frames"].push_back(frame_data);
-                try { ofstream o("result_video.json"); o << j_log.dump(2); } catch (...) {}
-            }
-        }
-
-        // 5. Preparação para Display (Conversão Segura)
-        if (d_frame_bgra.channels() == 4)
-            cuda::cvtColor(d_frame_bgra, d_frame_display, COLOR_BGRA2BGR, 0, stream);
-        else
-            d_frame_display = d_frame_bgra; 
-
-        // Baixa o frame para a CPU para desenhar
-        d_frame_display.download(h_display, stream);
-        stream.waitForCompletion();
-
-        // 6. Renderização na CPU (Caixas Bonitas e Cores Claras)
-        if (!h_display.empty()) {
-            
-            for (const auto& d : final_detections) {
-                // Recupera a cor clara gerada no início
-                int classIdx = -1;
-                for(size_t k=0; k<class_names.size(); k++) {
-                    if(class_names[k] == d.class_name) { classIdx = k; break; }
-                }
-                if (classIdx == -1) classIdx = 0;
-
-                Scalar color = colors[classIdx % colors.size()];
-
-                // Caixa
-                rectangle(h_display, d.box, color, 2);
-
-                // Etiqueta
-                string label = d.class_name + " " + format("%.2f", d.confidence);
-                int baseLine = 0;
-                Size labelSize = getTextSize(label, FONT_HERSHEY_SIMPLEX, 0.7, 2, &baseLine);
-
-                Rect bgRect(
-                    d.box.x,
-                    d.box.y - labelSize.height - 6, 
-                    max(labelSize.width + 10, d.box.width), 
-                    labelSize.height + baseLine + 6
-                );
                 
-                if (bgRect.y < 0) bgRect.y = d.box.y; 
-
-                // Fundo colorido
-                rectangle(h_display, bgRect, color, FILLED);
-
-                // Texto (Preto para contraste com cores claras)
-                putText(h_display, label,
-                    Point(d.box.x + 5, bgRect.y + labelSize.height + 3),
-                    FONT_HERSHEY_SIMPLEX, 0.7,
-                    Scalar(0, 0, 0), 2 
-                );
+                try {
+                    ofstream outFile("result_video.json");
+                    outFile << j_log.dump(2);
+                } catch (...) {}
+                
+                // Feedback mínimo no terminal para saber que está vivo
+                if (frameCount % 120 == 0) {
+                    cout << "[STATUS] Frame: " << frameCount << " | Matilha: " << (is_pack ? "SIM" : "NÃO") << endl;
+                }
             }
-
-            if (is_pack) {
-                rectangle(h_display, Rect(0,0, h_display.cols, h_display.rows), Scalar(0,0,255), 10);
-                putText(h_display, "MATILHA DETECTADA!", Point(50, 50), FONT_HERSHEY_SIMPLEX, 1.5, Scalar(0,0,255), 3);
-            }
-
-            imshow(windowName, h_display);
         }
-
-        if (waitKey(1) == 27) break;
     }
 
     double t1_global = (double)getTickCount();
