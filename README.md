@@ -50,7 +50,7 @@ python3 -m venv venv
 source venv/bin/activate
 pip install ultralytics flask werkzeug
 # se quiser manipular/rodar inferência em Python (opcional):
-pip install torch torchvision opencv-python numpy
+pip install torch torchvision opencv-python numpy flask
 ```
 
 ## Construir os binários C++ (OpenCV + ONNX)
